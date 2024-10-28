@@ -65,34 +65,32 @@ const sendOptions = async (chat, name) => {
 
 // Função para chamar a API do Hugging Face
 const sendMessageToModel = async (message) => {
-    const TOKEN = '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'; // Seu token atualizado
+    const TOKEN = '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'; // Sua chave atualizada
     const MODEL_URL = 'https://api-inference.huggingface.co/models/Hbruno214/chatbot-modelo'; // URL do seu modelo
 
     try {
+        // Adicionada para debug
+        console.log('Mensagem enviada para o modelo:', message);
+
         const response = await axios.post(MODEL_URL, {
             inputs: message
         }, {
             headers: {
                 'Authorization': `Bearer ${TOKEN}`,
-                'Content-Type': 'application/json'
+                'Content-Type': 'application/json' // Certifique-se de que o Content-Type está definido
             }
         });
 
-        if (response.data) {
-            logger.info('Resposta recebida do modelo:', response.data);
-            return response.data; // Retorna a resposta do modelo
-        } else {
-            throw new Error('Resposta do modelo está vazia.');
-        }
+        logger.info('Resposta recebida do modelo:', response.data);
+        return response.data; // Retorna a resposta do modelo
     } catch (error) {
-        // Log de erro mais detalhado
-        console.error('Erro ao se comunicar com o modelo:', error.message);
-        logger.error('Erro ao se comunicar com o modelo:', {
-            message: error.message,
-            config: error.config,
-            response: error.response ? error.response.data : 'Sem resposta',
-        });
-        return 'Desculpe, não consegui processar sua solicitação. Por favor, tente novamente.';
+        if (error.response) {
+            console.error('Erro ao se comunicar com o modelo:', error.response.data);
+        } else {
+            console.error('Erro ao se comunicar com o modelo:', error.message);
+        }
+        logger.error('Erro ao se comunicar com o modelo:', error);
+        return 'Desculpe, não consegui processar sua solicitação.'; // Mensagem padrão de erro
     }
 };
 
