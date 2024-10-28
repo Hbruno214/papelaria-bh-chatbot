@@ -1,7 +1,7 @@
 {
   "name": "papelaria-bh-chatbot",
   "version": "1.0.0",
-  "main": "index.js",
+  "main": "robo.js",
   "scripts": {
     "start": "node index.js"
   },
