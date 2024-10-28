@@ -1,20 +1,13 @@
 {
-    "name": "papelaria-bh-chatbot",
-    "description": "Bot de atendimento para a Papelaria BH utilizando WhatsApp Web",
-    "main": "robo.js",
-    "memory": 512,
-    "disk": 512,
-    "env": {
-      "BLOCKED_PHONE": "5582981452814@c.us",
-      "PORT": "3000"
-    },
-    "preserve_files": [".wwebjs_auth"],
-    "auto_restart": true,
-    "install": {
-      "pre": "npm install"
-    },
-    "start": {
-      "command": "node robo.js"
-    }
+  "$schema": "https://railway.app/railway.schema.json",
+  "build": {
+    "builder": "NIXPACKS"
+  },
+  "deploy": {
+    "runtime": "V2",
+    "numReplicas": 1,
+    "sleepApplication": false,
+    "restartPolicyType": "ON_FAILURE",
+    "restartPolicyMaxRetries": 10
   }
-  
+}

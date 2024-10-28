@@ -65,7 +65,7 @@ const sendOptions = async (chat, name) => {
 
 // Função para chamar a API do Hugging Face
 const sendMessageToModel = async (message) => {
-    const TOKEN = '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'; // Seu token atualizado
+    const TOKEN = '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'; // Seu token atualizado
     const MODEL_URL = 'https://api-inference.huggingface.co/models/Hbruno214/chatbot-modelo'; // URL do seu modelo
 
     try {
