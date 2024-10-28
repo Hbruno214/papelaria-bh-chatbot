@@ -1,5 +1,5 @@
 {
-    "name": "chatbot",
+    "name": "papelaria-bh-chatbot",
     "description": "Bot de atendimento para a Papelaria BH utilizando WhatsApp Web",
     "main": "robo.js",
     "memory": 512,
