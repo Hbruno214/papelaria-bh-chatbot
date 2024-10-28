@@ -65,7 +65,7 @@ const sendOptions = async (chat, name) => {
 
 // Função para chamar a API do Hugging Face
 const sendMessageToModel = async (message) => {
-    const TOKEN = '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'; // Seu token atualizado
+    const TOKEN = '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'; // Seu token atualizado
     const MODEL_URL = 'https://api-inference.huggingface.co/models/Hbruno214/chatbot-modelo'; // URL do seu modelo
 
     try {
@@ -73,16 +73,26 @@ const sendMessageToModel = async (message) => {
             inputs: message
         }, {
             headers: {
-                'Authorization': `Bearer ${TOKEN}`
+                'Authorization': `Bearer ${TOKEN}`,
+                'Content-Type': 'application/json'
             }
         });
 
-        logger.info('Resposta recebida do modelo:', response.data);
-        return response.data; // Retorna a resposta do modelo
+        if (response.data) {
+            logger.info('Resposta recebida do modelo:', response.data);
+            return response.data; // Retorna a resposta do modelo
+        } else {
+            throw new Error('Resposta do modelo está vazia.');
+        }
     } catch (error) {
-        console.error('Erro ao se comunicar com o modelo:', error);
-        logger.error('Erro ao se comunicar com o modelo:', error);
-        return 'Desculpe, não consegui processar sua solicitação.';
+        // Log de erro mais detalhado
+        console.error('Erro ao se comunicar com o modelo:', error.message);
+        logger.error('Erro ao se comunicar com o modelo:', {
+            message: error.message,
+            config: error.config,
+            response: error.response ? error.response.data : 'Sem resposta',
+        });
+        return 'Desculpe, não consegui processar sua solicitação. Por favor, tente novamente.';
     }
 };
 
