@@ -1,13 +1,11 @@
-const { Client } = require('whatsapp-web.js');
+const { Client, LocalAuth } = require('whatsapp-web.js');
 const qrcode = require('qrcode-terminal');
 const winston = require('winston');
 const express = require('express');
-const axios = require('axios'); // Adiciona a biblioteca axios
-
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Logger
+// Configuração do logger
 const logger = winston.createLogger({
     level: 'info',
     format: winston.format.json(),
@@ -17,87 +15,62 @@ const logger = winston.createLogger({
     ],
 });
 
+// Cria um endpoint de escuta para evitar timeout
 app.get('/', (req, res) => res.send('Bot is running'));
 app.listen(PORT, () => console.log(`Server is running on port ${PORT}`));
 
-// Cliente WhatsApp
 const client = new Client({
     authStrategy: new LocalAuth({ clientId: "bot-whatsapp" }),
-    puppeteer: { args: ['--no-sandbox', '--disable-setuid-sandbox'] }
+    puppeteer: {
+        args: ['--no-sandbox', '--disable-setuid-sandbox'],
+    }
 });
 
-// Função para verificar se está dentro do horário de atendimento
+// Função para verificar se estamos dentro do horário de funcionamento
 const isWithinBusinessHours = () => {
     const now = new Date();
-    now.setHours(now.getUTCHours() - 3); // Ajuste para horário de Brasília
-    const day = now.getDay();
-    const hour = now.getHours();
-
-    // Retorna falso aos domingos e fora do horário de atendimento
-    if (day === 0 || hour < 8 || hour >= 18) {
-        return false;
-    }
-    return day >= 1 && day <= 6;
+    const day = now.getDay();  // 0 - Domingo, 1 - Segunda, ..., 6 - Sábado
+    const hour = now.getHours();  // Horas do dia, de 0 a 23
+    return day >= 1 && day <= 6 && hour >= 8 && hour < 18;
 };
 
-// Geração de QR Code
+// Geração de código de pedido único
+const generateOrderCode = () => `BH-${Date.now()}`;
+
+// Serviço de leitura do QR code
 client.on('qr', qr => {
     qrcode.generate(qr, { small: true });
-    logger.info('QR code gerado. Escaneie para autenticar.');
+    logger.info('QR code gerado.');
 });
 
-// Quando o cliente está conectado
+// Evento de sucesso ao conectar
 client.on('ready', () => {
     console.log('✅ Tudo certo! WhatsApp conectado.');
     logger.info('WhatsApp conectado com sucesso.');
 });
 
+// Inicializa o cliente
 client.initialize();
 
+// Função de delay
 const delay = ms => new Promise(res => setTimeout(res, ms));
 
-// Mensagem padrão de opções
-const sendOptions = async (chat, name) => {
-    const optionsMessage = `Olá, *${name}*! Como posso ajudar você hoje?\n\nEscolha uma das opções abaixo:\n1. Impressão\n2. Preços\n3. Outros serviços`;
-    await chat.sendMessage(optionsMessage);
-};
-
-// Função para chamar a API do Hugging Face
-const sendMessageToModel = async (message) => {
-    const TOKEN = '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'; // Seu token atualizado
-    const MODEL_URL = 'https://api-inference.huggingface.co/models/Hbruno214/chatbot-modelo'; // URL do seu modelo
-
-    try {
-        const response = await axios.post(MODEL_URL, {
-            inputs: message
-        }, {
-            headers: {
-                'Authorization': `Bearer ${TOKEN}`
-            }
-        });
-
-        logger.info('Resposta recebida do modelo:', response.data);
-        return response.data; // Retorna a resposta do modelo
-    } catch (error) {
-        console.error('Erro ao se comunicar com o modelo:', error);
-        logger.error('Erro ao se comunicar com o modelo:', error);
-        return 'Desculpe, não consegui processar sua solicitação.';
-    }
-};
-
-// Processamento de mensagens
+// Funil de atendimento
 client.on('message', async msg => {
     const telefoneBloqueado = process.env.BLOCKED_PHONE || '5582981452814@c.us';
     try {
-        if (msg.from.endsWith('@g.us') || msg.from === telefoneBloqueado) {
-            console.log(`Mensagem ignorada de grupo ou número bloqueado: ${msg.from}`);
+        if (msg.from.endsWith('@g.us')) {
+            logger.info(`Mensagem ignorada de grupo: ${msg.from}`);
             return;
         }
 
-        // Verifica o horário de funcionamento
+        if (msg.from === telefoneBloqueado) {
+            logger.warn(`Mensagem recebida de número bloqueado: ${msg.from}`);
+            return;
+        }
+
         if (!isWithinBusinessHours()) {
-            await client.sendMessage(msg.from, '⏰ Olá! Estamos fora do horário de atendimento. A Papelaria BH atende de segunda a sábado, das 8h às 18h. Por favor, entre em contato dentro desse horário. Obrigado!');
-            console.log(`Mensagem enviada para ${msg.from} sobre horário de funcionamento.`);
+            await client.sendMessage(msg.from, '⏰ Olá! No momento, estamos fora do horário de funcionamento. A *Papelaria BH* atende de *segunda a sábado*, das *8h às 18h*. Por favor, entre em contato novamente dentro desse horário. Obrigado!');
             logger.info(`Mensagem fora do horário de funcionamento de ${msg.from}`);
             return;
         }
@@ -105,37 +78,37 @@ client.on('message', async msg => {
         const chat = await msg.getChat();
         const contact = await msg.getContact();
         const name = contact.pushname ? contact.pushname.split(" ")[0] : 'Cliente';
-        const lowerCaseMessage = msg.body.toLowerCase();
 
-        // Enviar opções se for a primeira mensagem
-        if (lowerCaseMessage.includes('menu') || lowerCaseMessage.includes('oi') || lowerCaseMessage.includes('olá')) {
-            await sendOptions(chat, name);
-            return;
+        if (msg.body.match(/(menu|dia|tarde|noite|oi|preço|valor|impressão|xerox|foto|serviços)/i) && msg.from.endsWith('@c.us')) {
+            await delay(3000);
+            await chat.sendStateTyping();
+            await delay(3000);
+            await client.sendMessage(msg.from, `Olá, *${name}*! Bem-vindo à *Papelaria BH* ️. Como posso ajudar? Aqui estão algumas opções de serviços:\n\n *1 - Impressão* (R$ 2,00 por página)\n *2 - Xerox* (R$ 0,50 por documento)\n️ *3 - Revelação de Foto* (R$ 5,00)\n *4 - Foto 3x4* (R$ 5,00 por 6 unidades)\n *5 - Plastificação A4* (R$ 7,00)\n *6 - Plastificação SUS* (R$ 5,00)\n *7 - Impressão em papel cartão* (R$ 3,00)\n *8 - Papel fotográfico adesivo* (R$ 5,00)\n *9 - Encadernação 50 folhas* (R$ 12,00)\n *10 - Ver mais opções de materiais e variedades*\n\nDiga o número da opção que deseja, ou envie seu arquivo para impressão.`);
+            await delay(3000);
+            await chat.sendStateTyping();
+        } else if (msg.body === '1') {
+            await client.sendMessage(msg.from, '️ O valor da impressão é *R$ 2,00 por página*. Envie o arquivo para que possamos imprimir. O prazo para a impressão é de *5 a 10 minutos*. Quando estiver pronto, você poderá buscar aqui na *Papelaria BH*.');
+            setTimeout(async () => {
+                await client.sendMessage(msg.from, `*${name}*, seu pedido de impressão está pronto! Pode retirar na *Papelaria BH*.`);
+            }, 600000);  // 10 minutos = 600000 ms
+        } else if (msg.body === '2') {
+            await client.sendMessage(msg.from, 'O valor da xerox é *R$ 0,50 por documento*. O prazo para a xerox é de *5 a 10 minutos*. Envie os documentos que deseja copiar e busque na *Papelaria BH*.');
+            setTimeout(async () => {
+                await client.sendMessage(msg.from, `*${name}*, sua xerox está pronta! Pode retirar na *Papelaria BH*.`);
+            }, 600000);
+        } else if (msg.body === '3') {
+            await client.sendMessage(msg.from, '️ O valor para revelação de foto é *R$ 5,00*. O prazo para a revelação é de *5 a 10 minutos*. Envie a foto que deseja revelar e venha buscar na *Papelaria BH*.');
+            setTimeout(async () => {
+                await client.sendMessage(msg.from, `*${name}*, sua revelação de foto está pronta! Pode retirar na *Papelaria BH*.`);
+            }, 600000);
+        } else if (msg.body === '4') {
+            await client.sendMessage(msg.from, 'O valor para foto 3x4 é *R$ 5,00 para 6 unidades*. O prazo para a foto é de *5 a 10 minutos*. Envie sua foto para impressão ou venha tirar aqui na *Papelaria BH*.');
+            setTimeout(async () => {
+                await client.sendMessage(msg.from, `*${name}*, sua foto 3x4 está pronta! Pode retirar na *Papelaria BH*.`);
+            }, 600000);
         }
 
-        // Verificar se o cliente enviou um arquivo
-        if (msg.hasMedia) {
-            await msg.downloadMedia();
-            await client.sendMessage(msg.from, `📩 Recebemos seu arquivo. O que você gostaria de fazer com ele?`);
-            return;
-        }
-
-        // Processar as opções
-        if (lowerCaseMessage.includes('1')) {
-            await client.sendMessage(msg.from, 'Você selecionou Impressão. O valor da impressão é *R$ 2,00 por página*. Envie o arquivo para impressão.');
-        } else if (lowerCaseMessage.includes('2')) {
-            await client.sendMessage(msg.from, 'Os preços são os seguintes:\n1 - Impressão (R$ 2,00 por página)\n2 - Xerox (R$ 0,50 por documento)\n3 - Revelação de Foto (R$ 5,00)\n4 - Foto 3x4 (R$ 5,00 por 6 unidades)\n5 - Plastificação A4 (R$ 7,00)\n6 - Plastificação SUS (R$ 5,00)\n7 - Impressão em papel cartão (R$ 3,00)\n8 - Papel fotográfico adesivo (R$ 5,00)\n9 - Encadernação 50 folhas (R$ 12,00)\n10 - Ver mais opções de materiais e variedades');
-        } else if (lowerCaseMessage.includes('3')) {
-            await client.sendMessage(msg.from, 'Por favor, descreva qual outro serviço você gostaria de saber.');
-        } else {
-            // Enviar a mensagem para o modelo da Hugging Face se não for uma das opções conhecidas
-            const responseFromModel = await sendMessageToModel(msg.body);
-            await client.sendMessage(msg.from, responseFromModel);
-        }
     } catch (error) {
         logger.error('Erro ao processar a mensagem: ', error);
     }
 });
-
-// Inicializa o cliente
-client.initialize();
