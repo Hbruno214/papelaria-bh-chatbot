@@ -35,20 +35,6 @@ const client = new Client({
     }
 });
 
-// Ajuste para o horário de Brasília
-const isWithinBusinessHours = () => {
-    const now = new Date();
-    const brasiliaTime = new Date(now.toLocaleString("en-US", { timeZone: "America/Sao_Paulo" }));
-    const day = brasiliaTime.toLocaleString("pt-BR", { weekday: 'short' }).toLowerCase();
-    const hour = brasiliaTime.getHours();
-
-    const isWeekday = ['seg', 'ter', 'qua', 'qui', 'sex', 'sáb'].includes(day);
-    const isWithinHours = hour >= 8 && hour < 18;
-
-    logger.info(`Horário atual em Brasília: ${brasiliaTime.toLocaleString("pt-BR")}. Função isWithinBusinessHours: ${isWeekday && isWithinHours}`);
-    return isWeekday && isWithinHours;
-};
-
 // Geração do QR Code
 client.on('qr', async qr => {
     qrcode.generate(qr, { small: true });
@@ -82,12 +68,6 @@ client.on('message', async msg => {
 
         if (msg.from === telefoneBloqueado) {
             logger.warn(`Mensagem recebida de número bloqueado: ${msg.from}`);
-            return;
-        }
-
-        if (!isWithinBusinessHours()) {
-            await client.sendMessage(msg.from, '⏰ Estamos fora do horário de funcionamento. A Papelaria BH atende de segunda a sábado, das 8h às 18h. Por favor, entre em contato nesse período. Obrigado!');
-            logger.info(`Mensagem fora do horário de funcionamento de ${msg.from}`);
             return;
         }
 
