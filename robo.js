@@ -1,72 +1,26 @@
-const { Client, LocalAuth } = require('whatsapp-web.js');
-const qrcode = require('qrcode-terminal');
-const winston = require('winston');
-const express = require('express');
-const qrcodeLib = require('qrcode');
-const fs = require('fs');
-const app = express();
-const PORT = process.env.PORT || 3000;
-
-// Configuração do logger
-const logger = winston.createLogger({
-    level: 'info',
-    format: winston.format.json(),
-    transports: [
-        new winston.transports.File({ filename: 'error.log', level: 'error' }),
-        new winston.transports.File({ filename: 'combined.log' }),
-    ],
-});
-
-// Configuração do diretório de uploads
-const uploadDir = './uploads';
-if (!fs.existsSync(uploadDir)){
-    fs.mkdirSync(uploadDir);
-}
-
-// Cria um endpoint de escuta para evitar timeout
-app.get('/', (req, res) => res.send('Bot is running'));
-app.listen(PORT, () => console.log(`Server is running on port ${PORT}`));
-
-// Configura o cliente do WhatsApp com a sessão
-const client = new Client({
-    authStrategy: new LocalAuth({ clientId: "bot-whatsapp", dataPath: process.env.SESSION_PATH }),
-    puppeteer: {
-        args: ['--no-sandbox', '--disable-setuid-sandbox'],
-    }
-});
-
-// Verifica horário de funcionamento
 const isWithinBusinessHours = () => {
-    const now = new Date();
-    const day = now.toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo", weekday: 'short' });
-    const hour = parseInt(now.toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo", hour: 'numeric', hour12: false }));
+    const nowUTC = new Date(); // Pega a data e hora em UTC
+    const brasiliaOffset = -3; // UTC-3 para horário de Brasília
 
-    const dayNumber = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'].indexOf(day);
-    return dayNumber >= 1 && dayNumber <= 6 && hour >= 8 && hour < 18;
+    const brasiliaTime = new Date(
+        nowUTC.getUTCFullYear(),
+        nowUTC.getUTCMonth(),
+        nowUTC.getUTCDate(),
+        nowUTC.getUTCHours() + brasiliaOffset, // Ajuste de fuso horário
+        nowUTC.getUTCMinutes(),
+        nowUTC.getUTCSeconds()
+    );
+
+    const day = brasiliaTime.getDay(); // 0 (Domingo) - 6 (Sábado)
+    const hour = brasiliaTime.getHours();
+    const minute = brasiliaTime.getMinutes();
+
+    const isWeekday = day >= 1 && day <= 6; // Segunda a sábado
+    const isWithinHours = hour >= 8 && hour < 18;
+
+    logger.info(`Horário calculado para Brasília: ${brasiliaTime.toLocaleString("pt-BR")}. Dia: ${day}, Hora: ${hour}, Minuto: ${minute}, isWeekday: ${isWeekday}, isWithinHours: ${isWithinHours}`);
+    return isWeekday && isWithinHours;
 };
-
-// Geração do QR Code
-client.on('qr', async qr => {
-    qrcode.generate(qr, { small: true });
-    logger.info('QR code gerado.');
-    try {
-        await qrcodeLib.toFile('./qrcode.png', qr);
-        console.log("QR Code saved as qrcode.png");
-    } catch (err) {
-        console.error(err);
-    }
-});
-
-// Evento de sucesso ao conectar
-client.on('ready', () => {
-    console.log('✅ Tudo certo! WhatsApp conectado.');
-    logger.info('WhatsApp conectado com sucesso.');
-});
-
-// Inicializa o cliente
-client.initialize();
-
-const delay = ms => new Promise(res => setTimeout(res, ms));
 
 client.on('message', async msg => {
     const telefoneBloqueado = process.env.BLOCKED_PHONE || '5582981452814@c.us';
@@ -81,9 +35,10 @@ client.on('message', async msg => {
             return;
         }
 
+        // Verifica se está fora do horário de funcionamento
         if (!isWithinBusinessHours()) {
+            logger.info(`Mensagem recebida fora do horário de funcionamento de ${msg.from}`);
             await client.sendMessage(msg.from, '⏰ Estamos fora do horário de funcionamento. A Papelaria BH atende de segunda a sábado, das 8h às 18h. Por favor, entre em contato nesse período. Obrigado!');
-            logger.info(`Mensagem fora do horário de funcionamento de ${msg.from}`);
             return;
         }
 
