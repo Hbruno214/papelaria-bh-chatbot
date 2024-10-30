@@ -19,7 +19,7 @@ const logger = winston.createLogger({
 
 // Configuração do diretório de uploads
 const uploadDir = './uploads';
-if (!fs.existsSync(uploadDir)) {
+if (!fs.existsSync(uploadDir)){
     fs.mkdirSync(uploadDir);
 }
 
@@ -35,27 +35,17 @@ const client = new Client({
     }
 });
 
-// Função para verificar o horário de funcionamento usando UTC
+// Ajuste para o horário de Brasília
 const isWithinBusinessHours = () => {
-    const nowUTC = new Date();
-    const brasiliaOffset = -3; // UTC-3 para horário de Brasília
-
-    const brasiliaTime = new Date(
-        nowUTC.getUTCFullYear(),
-        nowUTC.getUTCMonth(),
-        nowUTC.getUTCDate(),
-        nowUTC.getUTCHours() + brasiliaOffset,
-        nowUTC.getUTCMinutes(),
-        nowUTC.getUTCSeconds()
-    );
-
-    const day = brasiliaTime.getDay(); // 0 (Domingo) - 6 (Sábado)
+    const now = new Date();
+    const brasiliaTime = new Date(now.toLocaleString("en-US", { timeZone: "America/Sao_Paulo" }));
+    const day = brasiliaTime.toLocaleString("pt-BR", { weekday: 'short' }).toLowerCase();
     const hour = brasiliaTime.getHours();
 
-    const isWeekday = day >= 1 && day <= 6; // Segunda a sábado
+    const isWeekday = ['seg', 'ter', 'qua', 'qui', 'sex', 'sáb'].includes(day);
     const isWithinHours = hour >= 8 && hour < 18;
 
-    logger.info(`Horário calculado para Brasília: ${brasiliaTime.toLocaleString("pt-BR")}. Dia: ${day}, Hora: ${hour}, isWeekday: ${isWeekday}, isWithinHours: ${isWithinHours}`);
+    logger.info(`Horário atual em Brasília: ${brasiliaTime.toLocaleString("pt-BR")}. Função isWithinBusinessHours: ${isWeekday && isWithinHours}`);
     return isWeekday && isWithinHours;
 };
 
@@ -80,7 +70,8 @@ client.on('ready', () => {
 // Inicializa o cliente
 client.initialize();
 
-// Evento para processar mensagens
+const delay = ms => new Promise(res => setTimeout(res, ms));
+
 client.on('message', async msg => {
     const telefoneBloqueado = process.env.BLOCKED_PHONE || '5582981452814@c.us';
     try {
@@ -94,7 +85,6 @@ client.on('message', async msg => {
             return;
         }
 
-        // Verifica se está fora do horário de funcionamento
         if (!isWithinBusinessHours()) {
             await client.sendMessage(msg.from, '⏰ Estamos fora do horário de funcionamento. A Papelaria BH atende de segunda a sábado, das 8h às 18h. Por favor, entre em contato nesse período. Obrigado!');
             logger.info(`Mensagem fora do horário de funcionamento de ${msg.from}`);
@@ -105,22 +95,48 @@ client.on('message', async msg => {
         const contact = await msg.getContact();
         const name = contact.pushname ? contact.pushname.split(" ")[0] : 'Cliente';
 
+        // Mensagem de boas-vindas e opções de serviços
         if (msg.body.match(/(menu|oi|olá|ola|serviços|materiais)/i) && msg.from.endsWith('@c.us')) {
+            await delay(3000);
             await chat.sendStateTyping();
+            await delay(3000);
             await client.sendMessage(msg.from, `Olá, *${name}*! Bem-vindo à *Papelaria BH* ️. Aqui estão algumas opções:\n\n1 - Impressão\n2 - Xerox\n3 - Revelação de Foto\n4 - Foto 3x4\n5 - Plastificação A4\n6 - Plastificação SUS\n7 - Impressão em papel cartão\n8 - Papel fotográfico adesivo\n9 - Encadernação 50 folhas\n10 - Mais opções de materiais.\n\nDiga o número da opção ou envie seu arquivo.`);
-        } else if (msg.body >= '1' && msg.body <= '10') {
-            // Lógica de resposta para cada opção
-        } else if (msg.hasMedia) {
+            await delay(3000);
+            await chat.sendStateTyping();
+        } 
+        // Lógica para resposta a arquivos
+        else if (msg.hasMedia) {
             const media = await msg.downloadMedia();
             const filePath = `${uploadDir}/${msg.id.id}.${media.mimetype.split('/')[1]}`;
             fs.writeFileSync(filePath, media.data, { encoding: 'base64' });
-            await client.sendMessage(msg.from, `📥 Recebemos seu arquivo com sucesso. Nome do arquivo: *${filePath}*. Processaremos seu pedido em breve.`);
+            await client.sendMessage(msg.from, `📥 Recebemos seu arquivo com sucesso. Nome do arquivo: *${filePath}*. Processaremos seu pedido em breve. Seu arquivo estará pronto em 5 minutos para retirar na papelaria.\n\nObrigado! Você pode pagar via PIX (chave: 82987616759) ou na loja.`);
             logger.info(`Arquivo recebido de ${msg.from}: ${filePath}`);
+            // Pergunta de feedback
+            await delay(3000);
+            await client.sendMessage(msg.from, `Gostaríamos de saber sua opinião! Você ficou satisfeito com o serviço? Responda com "Sim" ou "Não".`);
+        } 
+        // Lógica para serviços
+        else if (msg.body >= '1' && msg.body <= '10') {
+            // Lógica de resposta para cada opção
+            // [Conteúdo aqui]
         } else {
             await client.sendMessage(msg.from, 'Desculpe, não entendi. Por favor, envie um número de opção ou escreva "menu".');
         }
 
     } catch (error) {
         logger.error('Erro ao processar a mensagem: ', error);
+    }
+});
+
+// Lógica para feedback do cliente
+client.on('message', async msg => {
+    const feedbackPrompt = ['sim', 'não'];
+    
+    if (feedbackPrompt.includes(msg.body.toLowerCase())) {
+        if (msg.body.toLowerCase() === 'sim') {
+            await client.sendMessage(msg.from, 'Agradecemos seu feedback positivo! Estamos aqui para ajudar sempre que precisar.');
+        } else {
+            await client.sendMessage(msg.from, 'Agradecemos por seu feedback! Vamos trabalhar para melhorar nossos serviços.');
+        }
     }
 });
