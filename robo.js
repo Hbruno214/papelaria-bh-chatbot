@@ -19,7 +19,7 @@ const logger = winston.createLogger({
 
 // Configuração do diretório de uploads
 const uploadDir = './uploads';
-if (!fs.existsSync(uploadDir)){
+if (!fs.existsSync(uploadDir)) {
     fs.mkdirSync(uploadDir);
 }
 
@@ -61,12 +61,17 @@ const delay = ms => new Promise(res => setTimeout(res, ms));
 // Número bloqueado
 const telefoneBloqueado = '5582981452814@c.us';
 
-client.on('message', async msg => {
-    // Bloqueio preventivo para impedir qualquer resposta ao número bloqueado
+// Função para verificar e ignorar mensagens do número bloqueado
+function isBlockedNumber(msg) {
     if (msg.from === telefoneBloqueado) {
-        logger.warn(`Mensagem recebida de número bloqueado: ${msg.from} - Sem resposta enviada.`);
-        return; // Impede qualquer resposta
+        logger.warn(`Mensagem recebida de número bloqueado: ${msg.from} - Ignorando.`);
+        return true;
     }
+    return false;
+}
+
+client.on('message', async msg => {
+    if (isBlockedNumber(msg)) return;  // Ignora mensagens do número bloqueado imediatamente
 
     try {
         // Ignora mensagens de grupos
@@ -109,18 +114,5 @@ client.on('message', async msg => {
 
     } catch (error) {
         logger.error('Erro ao processar a mensagem: ', error);
-    }
-});
-
-// Lógica para feedback do cliente
-client.on('message', async msg => {
-    const feedbackPrompt = ['sim', 'não'];
-    
-    if (feedbackPrompt.includes(msg.body.toLowerCase())) {
-        if (msg.body.toLowerCase() === 'sim') {
-            await client.sendMessage(msg.from, 'Agradecemos seu feedback positivo! Estamos aqui para ajudar sempre que precisar.');
-        } else {
-            await client.sendMessage(msg.from, 'Agradecemos por seu feedback! Vamos trabalhar para melhorar nossos serviços.');
-        }
     }
 });
