@@ -58,16 +58,20 @@ client.initialize();
 
 const delay = ms => new Promise(res => setTimeout(res, ms));
 
+// Número bloqueado
+const telefoneBloqueado = '5582981452814@c.us';
+
 client.on('message', async msg => {
-    const telefoneBloqueado = process.env.BLOCKED_PHONE || '5582981452814@c.us';
+    // Bloqueio preventivo para impedir qualquer resposta ao número bloqueado
+    if (msg.from === telefoneBloqueado) {
+        logger.warn(`Mensagem recebida de número bloqueado: ${msg.from} - Sem resposta enviada.`);
+        return; // Impede qualquer resposta
+    }
+
     try {
+        // Ignora mensagens de grupos
         if (msg.from.endsWith('@g.us')) {
             logger.info(`Mensagem ignorada de grupo: ${msg.from}`);
-            return;
-        }
-
-        if (msg.from === telefoneBloqueado) {
-            logger.warn(`Mensagem recebida de número bloqueado: ${msg.from}`);
             return;
         }
 
