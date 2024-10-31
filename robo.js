@@ -4,6 +4,7 @@ const winston = require('winston');
 const express = require('express');
 const qrcodeLib = require('qrcode');
 const fs = require('fs');
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 
@@ -35,11 +36,14 @@ const client = new Client({
     }
 });
 
-// Número bloqueado
-const numeroBloqueado = '+5582981452814@c.us';
+// Números bloqueados
+const blockedNumbers = ['+5582981452814@c.us', '+5582987616759@c.us'];
 
 // Função para verificar se o número é bloqueado
-const isBlockedNumber = (number) => number === numeroBloqueado;
+const isBlockedNumber = (number) => {
+    const formattedNumber = `${number}@c.us`; // Formata o número para o formato esperado
+    return blockedNumbers.includes(formattedNumber);
+};
 
 // Função para verificar horário de funcionamento
 const isWithinBusinessHours = () => {
@@ -48,9 +52,6 @@ const isWithinBusinessHours = () => {
     const hour = now.getHours();
     return day >= 1 && day <= 6 && hour >= 8 && hour < 18;
 };
-
-// Geração de código de pedido
-const generateOrderCode = () => `BH-${Date.now()}`;
 
 // Serviço de leitura do QR code
 client.on('qr', async qr => {
@@ -73,11 +74,17 @@ client.on('ready', () => {
 // Inicializa o cliente
 client.initialize();
 
+// Delay para simular o estado de digitação
 const delay = ms => new Promise(res => setTimeout(res, ms));
 
 // Atendimento
 client.on('message', async msg => {
-    if (isBlockedNumber(msg.from)) return; // Ignora mensagens do número bloqueado
+    // Verifica se o número está bloqueado
+    console.log(`Verificando número: ${msg.from}`); // Log de depuração
+    if (isBlockedNumber(msg.from)) {
+        logger.info(`Mensagem ignorada de número bloqueado: ${msg.from}`);
+        return; // Sai da função sem responder
+    }
 
     try {
         // Ignora mensagens de grupos
@@ -99,49 +106,83 @@ client.on('message', async msg => {
 
         // Mensagem de boas-vindas e opções de serviços
         if (msg.body.match(/(menu|oi|olá|bom dia|boa tarde|boa noite|serviços|materiais)/i) && msg.from.endsWith('@c.us')) {
+            await delay(3000);
             await chat.sendStateTyping();
-            await delay(2000); // Simula um atraso para que o cliente não perceba uma resposta instantânea
-            await client.sendMessage(msg.from, `Olá, *${name}*! Bem-vindo à *Papelaria BH* ️. Como posso ajudar? Aqui estão algumas opções de serviços:\n\n *1 - Impressão* (R$ 2,00 por página)\n *2 - Xerox* (R$ 0,50 por documento)\n️ *3 - Revelação de Foto* (R$ 5,00)\n *4 - Foto 3x4* (R$ 5,00 por 6 unidades)\n *5 - Plastificação A4* (R$ 7,00)\n *6 - Plastificação SUS* (R$ 5,00)\n *7 - Impressão em papel cartão* (R$ 3,00)\n *8 - Papel fotográfico adesivo* (R$ 5,00)\n *9 - Encadernação 50 folhas* (R$ 12,00)\n *10 - Ver mais opções de materiais e variedades*\n\nDiga o número da opção que deseja, ou envie seu arquivo para impressão.\n\n💳 *Para pagamentos, nosso Pix é: 82987616759*.`);
-        } else if (['1', '2', '3', '4'].includes(msg.body)) {
-            let responseMessage;
-            switch (msg.body) {
-                case '1':
-                    responseMessage = '️ O valor da impressão é *R$ 2,00 por página*. Envie o arquivo para que possamos imprimir. O prazo para a impressão é de *5 a 10 minutos*. Quando estiver pronto, você poderá buscar aqui na *Papelaria BH*.';
-                    break;
-                case '2':
-                    responseMessage = 'O valor da xerox é *R$ 0,50 por documento*. O prazo para a xerox é de *5 a 10 minutos*. Envie os documentos que deseja copiar e busque na *Papelaria BH*.';
-                    break;
-                case '3':
-                    responseMessage = '️ O valor para revelação de foto é *R$ 5,00*. O prazo para a revelação é de *5 a 10 minutos*. Envie a foto que deseja revelar e venha buscar na *Papelaria BH*.';
-                    break;
-                case '4':
-                    responseMessage = 'O valor para foto 3x4 é *R$ 5,00 para 6 unidades*. O prazo para a foto é de *5 a 10 minutos*. Envie sua foto para impressão ou venha tirar aqui na *Papelaria BH*.';
-                    break;
-            }
-
-            await client.sendMessage(msg.from, responseMessage);
-            await chat.sendStateTyping(); // Informa que o bot está "digitando"
-            await delay(3000); // Simula o tempo de processamento
-
-            // Aguardando envio de arquivo
-            logger.info(`Aguardando arquivo de ${msg.from}`);
-        } else if (msg.hasMedia) {
-            const media = await msg.downloadMedia();
-            // Aqui você pode salvar o arquivo recebido, se necessário
-            console.log('Arquivo recebido:', media);
-            await client.sendMessage(msg.from, '📄 Arquivo recebido com sucesso! Estamos processando seu pedido.');
-
-            // Simula o tempo para processamento
-            await delay(600000); // 10 minutos de espera
-            await client.sendMessage(msg.from, `*${name}*, seu pedido está pronto! Pode retirar na *Papelaria BH*.`);
-
-            // Feedback do cliente
-            await client.sendMessage(msg.from, 'Obrigado por utilizar nossos serviços! Gostaríamos de saber se o atendimento foi satisfatório. Por favor, responda com "sim" ou "não".');
-        } else if (msg.body.toLowerCase() === 'sim' || msg.body.toLowerCase() === 'não') {
-            const feedback = msg.body.toLowerCase() === 'sim' ? 'positivo' : 'negativo';
-            await client.sendMessage(msg.from, `Agradecemos seu feedback ${feedback}! Estamos aqui para ajudar sempre que precisar.`);
+            await delay(3000);
+            await client.sendMessage(msg.from, `Olá, *${name}*! Bem-vindo à *Papelaria BH* ️. Como posso ajudar? Aqui estão algumas opções de serviços:\n\n *1 - Impressão* (R$ 2,00 por página)\n *2 - Xerox* (R$ 0,50 por documento)\n *3 - Revelação de Foto* (R$ 5,00)\n *4 - Foto 3x4* (R$ 5,00 por 6 unidades)\n *5 - Plastificação A4* (R$ 7,00)\n *6 - Plastificação SUS* (R$ 5,00)\n *7 - Impressão em papel cartão* (R$ 3,00)\n *8 - Papel fotográfico adesivo* (R$ 5,00)\n *9 - Encadernação 50 folhas* (R$ 12,00)\n *10 - Ver mais opções de materiais e variedades*\n\nDiga o número da opção que deseja, ou envie seu arquivo para impressão.`);
+            await delay(3000);
+            await chat.sendStateTyping();
+        } else if (msg.body === '1') {
+            await handlePrintRequest(msg.from, name);
+        } else if (msg.body === '2') {
+            await handleXeroxRequest(msg.from, name);
+        } else if (msg.body === '3') {
+            await handlePhotoRevelationRequest(msg.from, name);
+        } else if (msg.body === '4') {
+            await handlePhoto3x4Request(msg.from, name);
+        } else if (msg.body.toLowerCase().includes('pagamento')) {
+            await handlePaymentRequest(msg.from);
+        } else {
+            await handleFileUpload(msg);
         }
+
     } catch (error) {
         logger.error('Erro ao processar a mensagem: ', error);
     }
 });
+
+// Funções para atender cada serviço
+const handlePrintRequest = async (from, name) => {
+    await client.sendMessage(from, '️ O valor da impressão é *R$ 2,00 por página*. Envie o arquivo para que possamos imprimir. O prazo para a impressão é de *5 a 10 minutos*. Quando estiver pronto, você poderá buscar aqui na *Papelaria BH*.');
+    setTimeout(async () => {
+        await client.sendMessage(from, `*${name}*, seu pedido de impressão está pronto! Pode retirar na *Papelaria BH*.`);
+    }, 600000); // 10 minutos
+};
+
+const handleXeroxRequest = async (from, name) => {
+    await client.sendMessage(from, 'O valor da xerox é *R$ 0,50 por documento*. O prazo para a xerox é de *5 a 10 minutos*. Envie os documentos que deseja copiar e busque na *Papelaria BH*.');
+    setTimeout(async () => {
+        await client.sendMessage(from, `*${name}*, sua xerox está pronta! Pode retirar na *Papelaria BH*.`);
+    }, 600000); // 10 minutos
+};
+
+const handlePhotoRevelationRequest = async (from, name) => {
+    await client.sendMessage(from, '️ O valor para revelação de foto é *R$ 5,00*. O prazo para a revelação é de *5 a 10 minutos*. Envie a foto que deseja revelar e venha buscar na *Papelaria BH*.');
+    setTimeout(async () => {
+        await client.sendMessage(from, `*${name}*, sua revelação de foto está pronta! Pode retirar na *Papelaria BH*.`);
+    }, 600000); // 10 minutos
+};
+
+const handlePhoto3x4Request = async (from, name) => {
+    await client.sendMessage(from, 'O valor para foto 3x4 é *R$ 5,00 para 6 unidades*. O prazo para a foto é de *5 a 10 minutos*. Envie sua foto para impressão ou venha tirar aqui na *Papelaria BH*.');
+    setTimeout(async () => {
+        await client.sendMessage(from, `*${name}*, sua foto 3x4 está pronta! Pode retirar na *Papelaria BH*.`);
+    }, 600000); // 10 minutos
+};
+
+// Função para receber arquivos
+const handleFileUpload = async (msg) => {
+    if (msg.hasMedia) {
+        const media = await msg.downloadMedia();
+        const fileName = `${uploadDir}/${msg.id}.jpg`; // Ajuste conforme necessário
+        fs.writeFileSync(fileName, media.data, { encoding: 'base64' });
+        await client.sendMessage(msg.from, 'Arquivo recebido com sucesso! Obrigado por utilizar nossos serviços.');
+        await client.sendMessage(msg.from, 'Gostaríamos de saber se o atendimento foi satisfatório. Por favor, responda com "sim" ou "não".');
+    }
+};
+
+// Função de pagamento
+const handlePaymentRequest = async (from) => {
+    const pixMessage = '💸 Para pagamentos, você pode usar o Pix:\nChave: *82987616759*';
+    await client.sendMessage(from, pixMessage);
+};
+
+// Feedback do cliente
+const handleFeedback = async (msg) => {
+    if (msg.body.toLowerCase() === 'sim') {
+        await client.sendMessage(msg.from, '🎉 Que bom que você ficou satisfeito! Agradecemos pelo feedback. Se precisar de mais alguma coisa, estamos à disposição.');
+    } else if (msg.body.toLowerCase() === 'não') {
+        await client.sendMessage(msg.from, '😞 Lamentamos saber disso. Por favor, nos diga como podemos melhorar.');
+    }
+};
+
