@@ -36,7 +36,7 @@ const client = new Client({
 });
 
 // Número bloqueado
-const numeroBloqueado = '5582981452814@c.us';
+const numeroBloqueado = '+5582981452814@c.us';
 
 // Função para verificar se o número é bloqueado
 const isBlockedNumber = (number) => number === numeroBloqueado;
