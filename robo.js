@@ -1,10 +1,10 @@
 const { Client, LocalAuth } = require('whatsapp-web.js'); 
-const qrcode = require('qrcode-terminal');
-const winston = require('winston');
-const express = require('express');
-const qrcodeLib = require('qrcode');
-const fs = require('fs');
-const app = express();
+const qrcode = require('qrcode-terminal'); 
+const winston = require('winston'); 
+const express = require('express'); 
+const qrcodeLib = require('qrcode'); 
+const fs = require('fs'); 
+const app = express(); 
 const PORT = process.env.PORT || 3000;
 
 // Configuração do logger
@@ -17,17 +17,17 @@ const logger = winston.createLogger({
     ],
 });
 
-// Configuração do diretório de uploads
+// Diretório de uploads
 const uploadDir = './uploads';
 if (!fs.existsSync(uploadDir)) {
     fs.mkdirSync(uploadDir);
 }
 
-// Configura o servidor para evitar timeout
+// Servidor para evitar timeout
 app.get('/', (req, res) => res.send('Bot is running'));
 app.listen(PORT, () => console.log(`Server is running on port ${PORT}`));
 
-// Configura o cliente do WhatsApp
+// Cliente do WhatsApp
 const client = new Client({
     authStrategy: new LocalAuth({ clientId: "bot-whatsapp", dataPath: process.env.SESSION_PATH }),
     puppeteer: {
@@ -35,7 +35,13 @@ const client = new Client({
     }
 });
 
-// Função para verificar se estamos dentro do horário de funcionamento
+// Número bloqueado
+const numeroBloqueado = '5582981452814@c.us';
+
+// Função para verificar se o número é bloqueado
+const isBlockedNumber = (number) => number === numeroBloqueado;
+
+// Função para verificar horário de funcionamento
 const isWithinBusinessHours = () => {
     const now = new Date();
     const day = now.getDay();
@@ -43,7 +49,7 @@ const isWithinBusinessHours = () => {
     return day >= 1 && day <= 6 && hour >= 8 && hour < 18;
 };
 
-// Geração de código de pedido único
+// Geração de código de pedido
 const generateOrderCode = () => `BH-${Date.now()}`;
 
 // Serviço de leitura do QR code
@@ -58,7 +64,7 @@ client.on('qr', async qr => {
     }
 });
 
-// Evento de sucesso ao conectar
+// Evento de conexão
 client.on('ready', () => {
     console.log('✅ Tudo certo! WhatsApp conectado.');
     logger.info('WhatsApp conectado com sucesso.');
@@ -69,20 +75,18 @@ client.initialize();
 
 const delay = ms => new Promise(res => setTimeout(res, ms));
 
-// Número bloqueado
-const telefoneBloqueado = '82981452814@c.us';
-const isBlockedNumber = (number) => number === telefoneBloqueado;
-
-// Funil de atendimento
+// Atendimento
 client.on('message', async msg => {
-    if (isBlockedNumber(msg.from)) return;
+    if (isBlockedNumber(msg.from)) return; // Ignora mensagens do número bloqueado
 
     try {
+        // Ignora mensagens de grupos
         if (msg.from.endsWith('@g.us')) {
             logger.info(`Mensagem ignorada de grupo: ${msg.from}`);
             return;
         }
 
+        // Verifica horário de funcionamento
         if (!isWithinBusinessHours()) {
             await client.sendMessage(msg.from, '⏰ Olá! No momento, estamos fora do horário de funcionamento. A *Papelaria BH* atende de *segunda a sábado*, das *8h às 18h*. Por favor, entre em contato novamente dentro desse horário. Obrigado!');
             logger.info(`Mensagem fora do horário de funcionamento de ${msg.from}`);
@@ -93,7 +97,8 @@ client.on('message', async msg => {
         const contact = await msg.getContact();
         const name = contact.pushname ? contact.pushname.split(" ")[0] : 'Cliente';
 
-        if (msg.body.match(/(menu|oi|olá|ola|bom dia|boa tarde|boa noite|serviços|materiais)/i) && msg.from.endsWith('@c.us')) {
+        // Mensagem de boas-vindas e opções de serviços
+        if (msg.body.match(/(menu|oi|olá|bom dia|boa tarde|boa noite|serviços|materiais)/i) && msg.from.endsWith('@c.us')) {
             await delay(3000);
             await chat.sendStateTyping();
             await delay(3000);
@@ -104,22 +109,22 @@ client.on('message', async msg => {
             await client.sendMessage(msg.from, '️ O valor da impressão é *R$ 2,00 por página*. Envie o arquivo para que possamos imprimir. O prazo para a impressão é de *5 a 10 minutos*. Quando estiver pronto, você poderá buscar aqui na *Papelaria BH*.');
             setTimeout(async () => {
                 await client.sendMessage(msg.from, `*${name}*, seu pedido de impressão está pronto! Pode retirar na *Papelaria BH*.`);
-            }, 600000);
+            }, 600000);  // 10 minutos
         } else if (msg.body === '2') {
             await client.sendMessage(msg.from, 'O valor da xerox é *R$ 0,50 por documento*. O prazo para a xerox é de *5 a 10 minutos*. Envie os documentos que deseja copiar e busque na *Papelaria BH*.');
             setTimeout(async () => {
                 await client.sendMessage(msg.from, `*${name}*, sua xerox está pronta! Pode retirar na *Papelaria BH*.`);
-            }, 600000);
+            }, 600000);  // 10 minutos
         } else if (msg.body === '3') {
             await client.sendMessage(msg.from, '️ O valor para revelação de foto é *R$ 5,00*. O prazo para a revelação é de *5 a 10 minutos*. Envie a foto que deseja revelar e venha buscar na *Papelaria BH*.');
             setTimeout(async () => {
                 await client.sendMessage(msg.from, `*${name}*, sua revelação de foto está pronta! Pode retirar na *Papelaria BH*.`);
-            }, 600000);
+            }, 600000);  // 10 minutos
         } else if (msg.body === '4') {
             await client.sendMessage(msg.from, 'O valor para foto 3x4 é *R$ 5,00 para 6 unidades*. O prazo para a foto é de *5 a 10 minutos*. Envie sua foto para impressão ou venha tirar aqui na *Papelaria BH*.');
             setTimeout(async () => {
                 await client.sendMessage(msg.from, `*${name}*, sua foto 3x4 está pronta! Pode retirar na *Papelaria BH*.`);
-            }, 600000);
+            }, 600000);  // 10 minutos
         }
 
     } catch (error) {
@@ -127,7 +132,7 @@ client.on('message', async msg => {
     }
 });
 
-// Lógica para feedback do cliente
+// Feedback do cliente
 client.on('message', async msg => {
     const feedbackPrompt = ['sim', 'não'];
     
