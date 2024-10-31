@@ -45,14 +45,6 @@ const isBlockedNumber = (number) => {
     return blockedNumbers.includes(formattedNumber);
 };
 
-// Função para verificar horário de funcionamento
-const isWithinBusinessHours = () => {
-    const now = new Date();
-    const day = now.getDay();
-    const hour = now.getHours();
-    return day >= 1 && day <= 6 && hour >= 8 && hour < 18;
-};
-
 // Serviço de leitura do QR code
 client.on('qr', async qr => {
     qrcode.generate(qr, { small: true });
@@ -79,22 +71,24 @@ const delay = ms => new Promise(res => setTimeout(res, ms));
 
 // Atendimento
 client.on('message', async msg => {
+    // Ignora mensagens de grupos
+    if (msg.from.endsWith('@g.us')) {
+        logger.info(`Mensagem ignorada de grupo: ${msg.from}`);
+        return;
+    }
+
     // Verifica se o número está bloqueado
-    console.log(`Verificando número: ${msg.from}`); // Log de depuração
     if (isBlockedNumber(msg.from)) {
         logger.info(`Mensagem ignorada de número bloqueado: ${msg.from}`);
         return; // Sai da função sem responder
     }
 
     try {
-        // Ignora mensagens de grupos
-        if (msg.from.endsWith('@g.us')) {
-            logger.info(`Mensagem ignorada de grupo: ${msg.from}`);
-            return;
-        }
-
         // Verifica horário de funcionamento
-        if (!isWithinBusinessHours()) {
+        const now = new Date();
+        const day = now.getDay();
+        const hour = now.getHours();
+        if (day >= 1 && day <= 6 && hour < 8) {
             await client.sendMessage(msg.from, '⏰ Olá! No momento, estamos fora do horário de funcionamento. A *Papelaria BH* atende de *segunda a sábado*, das *8h às 18h*. Por favor, entre em contato novamente dentro desse horário. Obrigado!');
             logger.info(`Mensagem fora do horário de funcionamento de ${msg.from}`);
             return;
@@ -180,7 +174,7 @@ const handlePaymentRequest = async (from) => {
 // Feedback do cliente
 const handleFeedback = async (msg) => {
     if (msg.body.toLowerCase() === 'sim') {
-        await client.sendMessage(msg.from, '🎉 Que bom que você ficou satisfeito! Agradecemos pelo feedback. Se precisar de mais alguma coisa, estamos à disposição.');
+        await client.sendMessage(msg.from, '🎉 Obrigado pelo feedback positivo! Se precisar de mais alguma coisa, estamos à disposição.');
     } else if (msg.body.toLowerCase() === 'não') {
         await client.sendMessage(msg.from, '😞 Lamentamos saber disso. Por favor, nos diga como podemos melhorar.');
     }
