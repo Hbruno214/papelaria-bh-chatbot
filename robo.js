@@ -61,17 +61,26 @@ const delay = ms => new Promise(res => setTimeout(res, ms));
 // Número bloqueado
 const telefoneBloqueado = '5582981452814@c.us';
 
-// Função para verificar e ignorar mensagens do número bloqueado
-function isBlockedNumber(msg) {
-    if (msg.from === telefoneBloqueado) {
-        logger.warn(`Mensagem recebida de número bloqueado: ${msg.from} - Ignorando.`);
+// Função para verificar se a mensagem ou tentativa de envio é para o número bloqueado
+function isBlockedNumber(id) {
+    if (id === telefoneBloqueado) {
+        logger.warn(`Número bloqueado identificado: ${id} - Ignorando.`);
         return true;
     }
     return false;
 }
 
+// Função personalizada para enviar mensagem apenas se o número não for o bloqueado
+async function sendMessageSafe(to, message) {
+    if (!isBlockedNumber(to)) {
+        await client.sendMessage(to, message);
+    } else {
+        logger.warn(`Envio de mensagem bloqueado para o número: ${to}`);
+    }
+}
+
 client.on('message', async msg => {
-    if (isBlockedNumber(msg)) return;  // Ignora mensagens do número bloqueado imediatamente
+    if (isBlockedNumber(msg.from)) return; // Ignora mensagens do número bloqueado
 
     try {
         // Ignora mensagens de grupos
@@ -89,7 +98,7 @@ client.on('message', async msg => {
             await delay(3000);
             await chat.sendStateTyping();
             await delay(3000);
-            await client.sendMessage(msg.from, `Olá, *${name}*! Bem-vindo à *Papelaria BH* ️. Aqui estão algumas opções:\n\n1 - Impressão\n2 - Xerox\n3 - Revelação de Foto\n4 - Foto 3x4\n5 - Plastificação A4\n6 - Plastificação SUS\n7 - Impressão em papel cartão\n8 - Papel fotográfico adesivo\n9 - Encadernação 50 folhas\n10 - Mais opções de materiais.\n\nDiga o número da opção ou envie seu arquivo.`);
+            await sendMessageSafe(msg.from, `Olá, *${name}*! Bem-vindo à *Papelaria BH* ️. Aqui estão algumas opções:\n\n1 - Impressão\n2 - Xerox\n3 - Revelação de Foto\n4 - Foto 3x4\n5 - Plastificação A4\n6 - Plastificação SUS\n7 - Impressão em papel cartão\n8 - Papel fotográfico adesivo\n9 - Encadernação 50 folhas\n10 - Mais opções de materiais.\n\nDiga o número da opção ou envie seu arquivo.`);
             await delay(3000);
             await chat.sendStateTyping();
         } 
@@ -98,18 +107,18 @@ client.on('message', async msg => {
             const media = await msg.downloadMedia();
             const filePath = `${uploadDir}/${msg.id.id}.${media.mimetype.split('/')[1]}`;
             fs.writeFileSync(filePath, media.data, { encoding: 'base64' });
-            await client.sendMessage(msg.from, `📥 Recebemos seu arquivo com sucesso. Nome do arquivo: *${filePath}*. Processaremos seu pedido em breve. Seu arquivo estará pronto em 5 minutos para retirar na papelaria.\n\nObrigado! Você pode pagar via PIX (chave: 82987616759) ou na loja.`);
+            await sendMessageSafe(msg.from, `📥 Recebemos seu arquivo com sucesso. Nome do arquivo: *${filePath}*. Processaremos seu pedido em breve. Seu arquivo estará pronto em 5 minutos para retirar na papelaria.\n\nObrigado! Você pode pagar via PIX (chave: 82987616759) ou na loja.`);
             logger.info(`Arquivo recebido de ${msg.from}: ${filePath}`);
             // Pergunta de feedback
             await delay(3000);
-            await client.sendMessage(msg.from, `Gostaríamos de saber sua opinião! Você ficou satisfeito com o serviço? Responda com "Sim" ou "Não".`);
+            await sendMessageSafe(msg.from, `Gostaríamos de saber sua opinião! Você ficou satisfeito com o serviço? Responda com "Sim" ou "Não".`);
         } 
         // Lógica para serviços
         else if (msg.body >= '1' && msg.body <= '10') {
             // Lógica de resposta para cada opção
             // [Conteúdo aqui]
         } else {
-            await client.sendMessage(msg.from, 'Desculpe, não entendi. Por favor, envie um número de opção ou escreva "menu".');
+            await sendMessageSafe(msg.from, 'Desculpe, não entendi. Por favor, envie um número de opção ou escreva "menu".');
         }
 
     } catch (error) {
