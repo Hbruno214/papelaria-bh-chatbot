@@ -174,7 +174,7 @@ const handlePaymentRequest = async (from) => {
 // Feedback do cliente
 const handleFeedback = async (msg) => {
     if (msg.body.toLowerCase() === 'sim') {
-        await client.sendMessage(msg.from, '🎉 Obrigado pelo feedback positivo! Se precisar de mais alguma coisa, estamos à disposição.');
+        await client.sendMessage(msg.from, '🤩 Obrigado pelo feedback positivo! Se precisar de mais alguma coisa, estamos à disposição.');
     } else if (msg.body.toLowerCase() === 'não') {
         await client.sendMessage(msg.from, '😞 Lamentamos saber disso. Por favor, nos diga como podemos melhorar.');
     }
