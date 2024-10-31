@@ -1,17 +1,3 @@
-# Ignorar node_modules e dependências
 node_modules/
-
-# Ignorar arquivos de configuração e ambiente
 .env
-.DS_Store
-
-# Ignorar logs e arquivos temporários
-logs/
 *.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-
-# Ignorar arquivos gerados pelo sistema operacional
-Thumbs.db
-desktop.ini
